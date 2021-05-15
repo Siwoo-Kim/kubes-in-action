@@ -1,0 +1,402 @@
+
+
+Cheat sheet 
+    kube logs [podName] --previous
+    
+    kube label pod [podName] [key]=[value] --overwrite
+    
+    kube get rc [rcName]
+    
+    kube delete rc [rcName] --cascade=false
+    
+    kube describe rs
+    
+    kube exec [podName] -- [command]
+    
+    kube exec [podName] -it bash
+    
+    kube exec [podName] env
+        - check service's ip & port
+        
+    kube get nodes -o jsonPath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}'
+        - get IPs of all nodes.
+        
+Docker
+    - Docker Hub registry
+    - Image
+    - Container
+    - Dockerfile (instruction to build the image)
+    
+Dockerfile
+    FROM
+        - base image
+    ADD
+        - add file from local to directory in the image
+    ENTRYPOINT
+        - defining command to execute the app in the container
+        
+    docker build -t [imgName] .
+    
+creating, running, and sharing a container image.
+    - docker images
+        list images
+    - docker ps
+        list containers
+    - docker run --name [containerName] -p [hostPort:containerPort] -d [image:tag]
+        run container from image
+    - docker inspect [containerName]
+        show container info
+    - docker exec -it kubia-container [sh|bash]
+        interactive mode in container
+    - docker stop [containerName]   
+    - docker rm [containerName]
+        docker rm $(docker ps -a -q)
+    
+    - docker tag [imgName] [id]/[imgName]
+        tagging img
+    - docker push [id]/imgName
+        push img to registry
+        
+Minikube
+     curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+     sudo install minikube-linux-amd64 /usr/local/bin/minikube
+        - install minikube
+
+    minikube start
+        - start kubes     
+        
+    kubectl cluster-info
+        - cluster information
+    kubectl get nodes
+        - list nodes
+    kubectl describe node [nodeName]
+    
+    kube get pods
+    kube describe pods
+    
+    kube expose pods kubia --type=LoadBalancer --name kubia-http
+        - LoadBalancer 을 통해 pods 을 외부로 expose
+        
+        (minikube service kubia-http)
+        
+    kube get services
+    
+    kube logs [podName] -c [containerName]
+    
+    kube port-forward [containerName] [hostPort]:[podPort]
+        - pod testing 을 하기 위해 포트포워딩.
+
+Tips
+    ~/.bashrc 파일에 추가
+    alias kube=kubectl
+    
+    source <(kubectl completion bash | sed s/kubectl/kube/g)
+        - auto completion
+        
+    kubectl run kubia --image=sm123tt/kubia --port=8080
+    
+Pod
+    - group of containers (one or more tightly related containers in the same Linux namespace)
+        - to support IPC (Inter-Process Communication or through locally stored file)
+        - binding containers together and provide them with the same env
+        - share same hostname and network interfaces.
+        - using Volume, each container share the filesystem.
+        - every pod can access every other pod at the IP address (flat network)
+            
+    - has its own IP, hostname, processes.
+    - Pods are spread out across different worker nodes.
+    - All containers of a pod run on the same node.
+    
+    Node                Node
+    pod1                pod1
+    pod2 (10.x.x.x)     pod2
+        - container1    ...
+        - container2
+    pod3
+    
+    Pod Creation flow
+        kubectl -> REST HTTP req -> Kube API Server -> Scheduler -> Node -> Kubelet -> Docker
+
+YAML
+    reference
+        http://kubernetes.io/docs/api 
+        kubectl explain pods
+    structure
+        kind
+           type of object/resource
+        metadata
+            pod metadata (name, labels, annotations..)
+        spec
+            list of pod's containers, volumes...
+        status
+            detail statuf of the pod and containers
+            
+    kube create -f [yamlFile]
+        - creating a pod from YAML or JSON
+    
+Grouping containers.
+    1. do they need to be run together or can they run on different hosts?
+    2. do they represent a single whole or are they independent components?
+    3. must they be scaled together or individually?
+    
+
+Creating pods from YAML
+    - creating resources by posting YAML to the kubes API server
+    
+   Exposing ReplicationController
+        - LoadBalancer service
+            connect to the pod through the load balancer's public IP
+     
+unknown
+    Deployment 
+    
+    ReplicationController
+        - replicate pods (availability)
+    
+    Service
+        - service has static IP and map request to the pods.
+        - client connect to the service through the service.
+
+Grouping pods 
+    Labels.
+        1. categorizing resources into subsets.
+        2. key-value pair you attach to a resource
+        3. using label selectors, selecting resources.
+        4. resource can have more than one label.
+        
+        Label 을 Pod 에 attach
+        
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: [podName]
+              labels:
+                [key]:value
+                ..
+                
+        Label 확인
+            kube get pod --show-labels
+            kube get pod -L [label1],[label2]
+        
+        Label 변경
+            kube label pods [podName] key=value --overwrite
+            
+        Label Selector
+            kube get pods -l [key]=[value]
+            
+            selector exp
+                'key=value'
+                'key!=value'
+                'key'
+                '!key'
+                    pods only doesn't have specified key label
+                    
+                'key in (val1,val2)'
+                    either va1 or val2
+            
+        nodeSelector:
+            key: value
+            
+        - instruct kube to deploy this pod only to nodes containing the "key" and "value"
+        
+
+    Annotations
+        doesn't provide query mechanism like query-selector
+        can hold much larger pieces of information
+        
+        apiVersion: ..
+        metadata:
+            annotations:
+                key: |
+                {json... }
+                
+    Namespace
+        split components into smaller distinct group (Eg, dev, qa, prod or domain layer)
+         
+         kube get ns
+            - list all namespace in cluster
+         kube get pods --namespace [namespaceName]   
+         
+         apiVersion: v1
+         kind: Namespace
+         metadata:
+            name: [namespaceName]
+
+        - creating namespace
+        
+        kube create -f [yamlFile] -n [namespaceName]   
+
+Liveness probes
+    - periodically execute the probe and restart the container if the probe fails.
+    - need to set an initial delay to account for app's start up time (initialDelaySeconds)
+    - shouldn't use too many computational resources and shouldn't take too long to complete.
+    
+    - HTTP GET probe
+        prediodically perform HTTP GET request to defermine if the container is still healthy
+    - TCP Socket probe
+    - Exec probe
+    
+    apiVersion: v1
+    kind: Pod
+    metadata:
+        name: ..
+    spec:
+        ...
+        livenessProbe:
+            httpGet:
+                path: [httpPath]
+                port: [httpPort]
+            initialDelaySeconds: 15
+            # will wait 15 seconds before executing the first probe
+            
+ReplicationControllers
+    - ensures its pods are always kept running.
+    - makes sure the actual number of "labeled" pods always matched the desired number.
+    - if the managed label by rc change, the pod no longer managed.
+    - you can edit the rc when rc is running
+    
+    Components.
+        1. label selector
+            - determines what pods are in the RC's scope
+        2. replica count
+            - the desired number of pods
+        3. pod template
+            - is used when creating new pod replicas.
+    
+    apiVersion: v1
+    kind: ReplicationController
+    metadata:
+      name: kubia
+    spec:
+      replicas: 3
+      selector:
+        app: kubia
+      template:
+        metadata:
+          labels:
+            app: kubia
+        spec:
+          containers:
+            - name: kubia
+              image: sm123tt/kubia
+              ports:
+              - containerPort: 8080
+              
+    kube get rc
+        - ger info about rc
+    
+    kube edit rc kubia
+        - change rc's template
+        
+    kube scale rc kubia --replicas=10
+    
+ReplicaSet
+    - new generation of rc
+    - more expressive pod selectors
+    - matchExpressions (In, NotIn, Exists, DoesNotExist)
+    - AND operation for multiple expressions 
+    
+    apiVersion: apps/v1
+    kind: ReplicaSet
+    metadata:
+      name: kubia-rs
+    spec:
+      replicas: 3
+      selector:
+          matchExpressions:
+            # only difference
+            - key: app
+              operator: In
+              values:
+                - ...
+                
+      template:
+        metadata:
+          labels:
+            app: kubia
+        spec:
+          containers:
+            - name: kubia
+              image: sm123tt/kubia
+              
+    kube get rs
+    
+Job resource
+    - want to run a task that terminates after completing its works. (completable work)
+    - If the event of a process failure, the Job can be configured to either restart or not.
+    
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: prime-job
+    spec:
+      template:
+        metadata:
+          labels:
+            app: prime-job
+        spec:
+          restartPolicy: OnFailure
+          #set up policy
+          containers:
+            - name: main
+              image: sm123t/prime 
+    
+    kube get job
+    
+Service
+    - constant point of entry to a group of pods providing the same service.
+    - Each service has an IP address and port that never change while the service exists.
+    - use label selectors to specify which pods belong to the same set.
+    - "sessionAffinity: ClientIP" allow a certain client to be redirected to the same pod every time.
+    - service's IP address and port number will be available in container's env with their name
+    
+    Exposing pods to other pods in the cluster.
+    
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: [svcName]
+        spec:
+          ports:
+            - name: [namedPort]
+              port: [svcPort]
+              targetPort: [namedPort in Pod]
+          selector:
+            [key]: [value]
+        
+        NAME         TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+        kubia-svc    ClusterIP      10.102.78.247   <none>        80/TCP           4s
+
+        access through service's http://Cluster-IP/PORT
+        access through service's http://[svcName]
+        access through service's http://[svcName].[namespace].[svc.cluster.local]
+        
+    Service Discovery
+        kube exec [containerName] env
+    
+
+    Exposing service to external clients.
+        a few ways to make a service accessible externally.
+            1. Setting the service type to NodePort
+            2. Setting the service type to LoadBalancer
+            3. Creating an Ingress resource.
+      
+        NodePort service.
+            - the service is accessible through the IP address of any cluster node (with their own ip address).
+            
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: kubia-svc-nodeport
+            spec:
+              ports:
+                type: NodePort
+                - name: http
+                  port: 80
+                  # port of the service's internal cluster IP
+                  targetPort: http
+                  # target port of the pods
+                  nodePort: 30123
+                  # the service will be accessible through the node port with each node's IP
+              selector:
+                [key]: [value]

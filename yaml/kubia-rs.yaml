@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: kubia-rs
+spec:
+  replicas: 3
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - kubia
+          - test-kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+        - name: kubia
+          image: sm123tt/kubia
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443

@@ -1,0 +1,14 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prime-job
+spec:
+  template:
+    metadata:
+      labels:
+        app: prime-job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: main
+          image: sm123tt/prime 
