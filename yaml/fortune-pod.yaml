@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fortune
+spec:
+  containers:
+    - name: web-server
+      image: nginx:alpine
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: html
+          readOnly: true
+    - name: html-generator
+      image: sm123tt/fortune
+      volumeMounts:
+        - mountPath: /var/htdocs
+          name: html
+  volumes:
+    - name: html
+      emptyDir: {}

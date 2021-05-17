@@ -18,9 +18,19 @@ Cheat sheet
     kube exec [podName] env
         - check service's ip & port
         
-    kube get nodes -o jsonPath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}'
+    kube get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}'
         - get IPs of all nodes.
         
+    openssl genrsa -out tls.key 2048
+    
+    openssl req -new -x509 -key tls.key -out tls.cert -days 360 -subj /CN=kubia.example.com
+    
+    kube create secret tls tls-secret --cert=tls.cert --key=tls.key
+        - TLS cert & private key creation and the kube's secret 
+    
+    kube port-forward fortune [localPort]:[podPort]
+        forwarding a port from local machine to the pod.
+    
 Docker
     - Docker Hub registry
     - Image
@@ -400,3 +410,168 @@ Service
                   # the service will be accessible through the node port with each node's IP
               selector:
                 [key]: [value]
+                
+        
+        LoadBalancer 
+            - is a NodePort service with an additional infrastructure-provided load balancer. (can access pod via Node's IP and specified port)
+            - have its own unique, publicly accessible IP address and will redirect all connections to the service.
+            - IP address will be listed as the external IP address.
+    
+    Session affinity ("sessionAffinity")
+        - users will always hit the same pod until the connection is closed.
+            (when a connection - keep-alive to a service is opened, all packets belonging to that connection are sent to the single pod)
+            
+    Removing extra network hop ("externalTrafficPolicy")
+        - prevent additional hop by configuring the service to redirect external traffic only to pods running on the node.
+        - "Local" external traffic policy may lead to "uneven" distribution of requests
+        
+    Ingress Resource (GATEWAY)
+        - operate at the application layer (HTTP) and provide features such as cookie-based session affinity.
+        - Ingress controller should be running in your cluster.
+        - make sure all HTTP requests will be sent to the "service"
+        - can map "multiple paths" "on the same host" to different services.
+        - support HTTPS (TLS connection). attach a certification and a private key to the Ingress
+        
+        minikube addons enable ingress
+            - enable the ingress add-on
+        
+        apiVersion: networking.k8s.io/v1beta1
+        kind: Ingress
+        metadata:
+          name: [ingName]
+        spec:
+          tls:
+            - hosts:
+                - [hostName for TLS]
+              secretName: [secretForTLS]
+          rules:
+            - host: [hostName]
+              http:
+                paths:
+                  - path: [pathForSvc]
+                    backend:
+                      serviceName: [svcName]
+                      servicePort: [svc's Port]
+                  
+        Ingress Flow
+            1. client perform "DNS lookup" of [hostname]
+            2. client get IP of the "Ing Controller"
+            3. sent HTTP request to "Ing Controller"
+            4. "Ing controller" look up pod IPs through the "Endpoints object" with associated the svc (defined in the yaml)
+            5. send request to one of the pods
+            
+Readiness probes.
+    - "Liveness probes" keep pods healthy by killing of unhealthy one.
+    - Whereas readiness probes just make sure that only pods are ready to request receive them.
+    - "Readiness probes" makes sure clients only talk to those healthy pods. (LB healthy checking feature only)
+    - Always define a readiness probe.
+    
+    exec probe
+        - a process is executed and the container's status is determined by exit status code.
+    HTTP get probe
+    TCP Socket probe
+        - opens TCP connection to a port of the container. the container's status is determined by result of establishing conection.
+     
+    apiVersion: apps/v1
+    kind: ReplicaSet
+    metadata:
+      name: kubia-rs
+    spec:
+      replicas: 3
+      selector:
+        matchExpressions:
+          - key: app
+            operator: In
+            ...
+      template:
+        ...
+        spec:
+          containers:
+            - name: kubia
+              ...
+              readinessProbe:
+                exec:
+                  command:
+                    - ls
+                    - /var/ready
+
+Volumes
+    - volume is available to all containers in the pod, must be mounted in each container (VolumeMount in container's spec).
+    - can mount the volume in any location of its filesystem
+    - new container can see all the files that were written to the volume by the previous container
+    - 볼륨은 팟의 컨테이너에게 공유되는 파일시스템, 팟 사이에서 공유되는 파일시스템 두 가지로 나눠지는 듯.
+    
+    Type of volumes
+        emptyDir    - simple empty directory used for storing tansient data
+        hostPath    - used for mounting dirs from the node's filesystem into the pod.
+        gitRepo     - a volume initialized by checking out the contents of a git repo.
+        nfs         - an nfs shared mounted into the pod.
+        awsElasticBlockStore, azureDisk - Cloud based volume disk.
+        configMap, secret   - special types of volumes used to expose certain kube's resources and cluster info (metadata).
+
+    Sharing data between "containers" in a pod
+    
+        emptyDir volume
+            - volume's lifetime is tied to the pod. (not persistent)
+            - volume's contents are lost when the pod is deleted.        
+            - used for sharing files between containers running in the same pod.
+            - used by a container for when a container needs to write data to disk temporarily.
+            
+        apiVersion: v1
+        kind: Pod
+        metadata:
+            - name: [podName]
+        spec:
+            containers:
+                - name: [ctName]
+                  image: [imgName]
+                  ports: 
+                    - containerPort: 80
+                           protocol: TCP
+                  volumeMounts:
+                    - mountPath: [mountPath]
+                      name: [volName]
+                      readOnly: [boolean]
+                - name: [ctName]
+                ...
+                  volumeMounts:
+                    - mountPath: [mountPath]
+                      name: [volName]
+                      ...
+            volumes:
+             - name: [volName]
+               emptyDir: {}
+               
+    Accessing files on the node's filesystem.
+        - hostPath allow pods to access the node's devices.
+        
+        hostPath volume
+            - persistent storage (not deleted when a pod is torn down)
+            - never use it to persist data across pods (eg. DB)
+            
+    Using PERSISTENT Storage
+        - the data needs to be accessible from any cluster node. 
+        - NAS (network-attached storage)
+        
+        1. creating disk.
+        2. create db pod with the volumes 
+        
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: [podName]
+        spec:
+          containers:
+            - name: [dpContainerName]
+              image: [dbImg]
+              volumeMounts:
+                - mountPath: [mountPath]
+                  name: [volName]
+              ports:
+                - containerPort: [dbPort]
+                  protocol: [dpProtocol]
+          volumes:
+            - name: [volName]
+            gcePersistentDisk:
+                pdName: [podName]
+                fsType: [fileSystemType=ext4]

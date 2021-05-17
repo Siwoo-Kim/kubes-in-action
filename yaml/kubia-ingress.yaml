@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: kubia-ingress
+spec:
+  tls:
+    - hosts:
+        - kubia.siwoo.com
+      secretName: tls-sercret
+  rules:
+    - host: kubia.siwoo.com
+      http:
+        paths:
+          - path: /kubia
+            backend:
+              serviceName: kubia-svc-nodeport
+              servicePort: 80
