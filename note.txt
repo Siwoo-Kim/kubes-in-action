@@ -575,3 +575,73 @@ Volumes
             gcePersistentDisk:
                 pdName: [podName]
                 fsType: [fileSystemType=ext4]
+                
+    PV & PVC (Persistent Volume & Persistent Volume Claim)
+        - developer doesn't need to know actual network storage infra.
+        - PV need to be registered in the kube
+        - user request a volume through submitting PVC and the volume will be bound.
+        - Need to specify PV's "capacity" and "access mode", "location of disk" and "type of disk"
+        - PV is "cluster-level" resources. (available in all nodes)
+        - When PVC is created, appropriate PV will binds it to the PVC
+        - PVC requires access modes. 
+         
+         Access Mode (Access Mode is based on nodes)
+            RWO - Read Write Once   - Only a single node can mount the volume for reading and writing
+            ROX - Read Only Many    - Multiple nodes can mount the volume for reading
+            RWX - Read Write Many   - Multiple nodes can mount the volume for read & write
+            
+         apiVersion: v1
+         kind: PersistentVolume
+         metadata:
+            ...
+         spec:
+            capacity:
+                storage: [sizeOfStorage]
+            accessModes:
+            - [ReadWriteOnce|ReadOnlyMany|ReadWriteMany]
+            persistentVolumeReclaimPolicy: [Retain..]
+            [azureDisk|gcePersistentDisk]:
+                ...
+                
+Configuring containerized app.
+    - passing command-line args to containers
+    - setting customer env variables for each container
+    - mounting configuration files through "a specity type of volume".
+    
+    
+    Defining the command and arg in Docker
+        ENTRYPOINT 
+            defines the executable invoked when the container is started.
+        CMD
+            specifies the args that get passed to the ENTRYPOINT
+            메인 명령어 (ENTRYPOINT) 와 함께 사용하며 추가 default 인자값을 정의할 때 사용.
+            
+        ENTRYPOINT ["xxx.sh"]
+        CMD ["defaultArg", ..]
+        
+    Overriding "ENTRYPOINT" and "CMD" in Kubernetes
+        ENTRYPOINT - COMMAND
+            executable that's executed inside the container
+        CMD - ARGS 
+            the arguments passed to the executable
+    
+    Setting ENV variables for a container.
+        - 'pod level' env variable
+        - 'container level' env variable
+        - "env" in container spec
+        - can reference previously defined env variable using $(VAR) syntax.
+        
+        apiVersion: v1
+        kind: Pod
+        metadata:
+            ...
+        spec:
+            containers:
+                - name: ..
+                  image: ...
+                env:
+                  - name: [env]
+                   value: [value]
+                  - name: ... 
+        
+        

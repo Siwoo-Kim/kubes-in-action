@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-1
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+    - ReadOnlyMany
+  azureDisk:
+    diskName: kube-audit-dev-test
+    diskURI: "https://md-f1jjbc4dfrqk.blob.core.windows.net/dmlbjz2zfcm1/abcd?sv=2018-03-28&sr=b&si=92b2e3ff-dee0-4d90-9429-72207f45a832&sig=6vQ3hDlDo4cNq1PUwa1E3t2pTy7RM0LfoIAg9GU3Bk0%3D"
+    fsType: ext4
+    readOnly: false
