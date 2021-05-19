@@ -28,7 +28,7 @@ Cheat sheet
     kube create secret tls tls-secret --cert=tls.cert --key=tls.key
         - TLS cert & private key creation and the kube's secret 
     
-    kube port-forward fortune [localPort]:[podPort]
+    kube port-forward [podName] [localPort]:[podPort]
         forwarding a port from local machine to the pod.
     
 Docker
@@ -608,7 +608,6 @@ Configuring containerized app.
     - setting customer env variables for each container
     - mounting configuration files through "a specity type of volume".
     
-    
     Defining the command and arg in Docker
         ENTRYPOINT 
             defines the executable invoked when the container is started.
@@ -644,4 +643,84 @@ Configuring containerized app.
                    value: [value]
                   - name: ... 
         
+    Decoupling config with a ConfigMap
+        - decouple the config from the pod descriptor.
+        - a map containing key/value pairs with the values ranging from literals to files.
+        - use a different ConfigMap in each env
+        - "configMapKeyRef.optional" property allow the container starts even if ConfigMap doesn't exist.
+        - can pass the values from configmap to pod using "valueFrom", "envFrom"
+        - when configmap is "edit"ed, the value in the container also will be updated automatically.
         
+        kube create configmap [name] --from-literal=[key]=[value] --from-literal...
+        kube get configmap [name] -o yaml
+        
+        kubectl create configmap [name] --from-file=[/path/to/dir]
+            - from files
+        kubectl create configmap [name] --from-literal=[key]=[value]
+            - from args
+        kubectl create -f [yamlFile]
+            - from yaml
+        
+        
+        apiVersion: v1
+        kind: Pod
+        ...
+        spec:
+            env:
+            - name: [VAR_NAME]
+              valueFrom:
+                configMapKeyRef:
+                    name: [configmapName]
+                    key: [keyInConfigMap]
+                    optional: [true|false]
+                    
+        apiVersion: v1
+        kind: Pod
+        ...
+        spec:
+            envFrom:
+            - prefix: [prefix]
+              configMapRef:
+                name: [configName]   
+                
+        Passing a ConfigMap as a command-line argument
+            - init an env variable from configmap and then refer the variable into arguments
+            - using $(VAR_NAME) syntax in "args"
+            
+            apiVersion: v1
+            kind: Pod
+            metadata:
+                name: [podName]
+            spec:
+                containers:
+                    - image: [imgName]
+                      name: [podName]
+                      envFrom:
+                      - prefix: [prefixOfConfigmap]
+                        configMapRef:
+                            name: [configName]
+                     command: [command]
+                     args: ["$(VARIABLE)"]
+                     
+    Secrets.
+        - like ConfigMap (key-value pairs)
+        - expose secret entries as files in a volume
+        - Secrets are always stored in memory and never written to physical storage.
+        - etcd (in master node) stores Secrets in encrpted form.
+        - entries are shown as Base64-encoded
+        
+        kube get secrets
+            - get all secrets
+            
+        Default token secret
+            - need for secure talk between pods and Kubenetes API
+            - default-token secret is mounted into every container
+            - /var/run/secrets/kubernetes.io/serviceaccount
+            
+        HTTPS (TLS)
+            - private key needs to be kept secure.
+            - "openssl genrsa" & "openssl req" to generate cert and private ke.
+            
+           kube create secret [generic|tsl] [secretName] --from-file=...
+           
+           
