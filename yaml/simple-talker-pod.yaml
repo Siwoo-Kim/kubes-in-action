@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-talker-pod
+spec:
+  containers:
+    - name: main
+      image: sm123tt/simple-talker
+      imagePullPolicy: Always

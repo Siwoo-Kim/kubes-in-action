@@ -723,4 +723,170 @@ Configuring containerized app.
             
            kube create secret [generic|tsl] [secretName] --from-file=...
            
-           
+Downward API
+    - pass metadata (the pod's data) about hte pod and its env variables or files
+    - resource limit or requests is available through "resourceFieldRef"
+    - only "volume" mechanism allow to access pods' labels & annotations
+    
+    Exposing metadata through env.
+        - defined in spec.containers.env
+        - "valueFrom.fieldRef" or "valueFrom.resourceFieldRef"
+        - metadata.[name|namespace], status.potIP, spec.nodeName
+        
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: downard-pod
+        spec:
+          containers:
+            - name: main
+              image: busybox
+              command: ["sleep", "9999999"]
+              resources:
+                requests:
+                  cpu: 15m
+                  memory: 4Mi
+              env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: POD_IP
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: status.podIP
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: SERIVCE_ACCOUNT
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.serviceAccountName
+                - name: CONTAINER_CPU_REQUEST_MILLICORES
+                  valueFrom:
+                    resourceFieldRef:
+                      resource: requests.cpu
+                      divisor: 1m
+                - name: CONTAINER_MEMORY_LIMIT_KIIBIBYTES
+                  valueFrom:
+                    resourceFieldRef:
+                      resource: limits.memory
+                      divisor: 1Ki
+                      
+        kube exec [podName] -- env
+        
+    Exposing metadata through volume
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: downward-vol-pod
+          labels:
+            foo: bar
+          annotations:
+            key1: value1
+            key2: |
+              multi
+              line
+              value
+        spec:
+          containers:
+            - name: main
+              image: busybox
+              command: ["sleep", "9999999"]
+              resources:
+                requests:
+                  cpu: 15m
+                  memory: 10Mi
+                limits:
+                  cpu: 100m
+                  memory: 15Mi
+              volumeMounts:
+                - mountPath: /etc/downward
+                  name: downward
+          volumes:
+            - name: downward
+              downwardAPI:
+                items:
+                  - path: "podName"
+                    fieldRef:
+                      fieldPath: metadata.name
+                  - path: "podNamespace"
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                  - path: "labels"
+                    fieldRef:
+                      fieldPath: metadata.labels
+                  - path: "annotations"
+                    fieldRef:
+                      fieldPath: metadata.annotations
+                  - path: "containerCpuRequestMilliCores"
+                    resourceFieldRef:
+                      containerName: main
+                      resource: requests.cpu
+                      divisor: 1m
+                  - path: "containerMemoryLimitBytes"
+                    resourceFieldRef:
+                      containerName: main
+                      resource: limits.memory
+                      divisor: 1Ki
+
+Talking to the kubernetes API server.
+    - allow "container" to know more about other pods and other resources defined in the cluster.
+    
+    kubectl poxy
+        - runs a proxy server that accepts HTTP connections on your local machine
+        - proxies them to the API server while tacking care of authentication.
+        
+        kube proxy
+            - Starting to serve on 127.0.0.1:8001
+        curl 127.0.0.1:8001
+            - shows all allowed resources
+            - most resource types can be found in "api/v1"
+            - batch API group can be found in "apis/batch/v1"
+            
+        curl 127.0.0.1:8001/apis/
+        
+    Talking to the API server from within a pod.
+        1. location of the API server
+        2. Authenticate with the server. ( ca.crt & token )
+        
+        Kubernetes API HOST & PORT
+            - env vars are configured for each service.
+            KUBERNETES_SERVICE_HOST
+            KUBERNETES_SERVICE_PORT
+            KUBERNETES_SERVICE_PORT_HTTP
+            
+            - also each service gets a DNS entry.
+            https://kubernetes
+       
+        ca crt.
+            /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        token
+            /var/run/secrets/kubernetes.io/serviceaccount/token
+        
+        namespace
+            /var/run/secrets/kubernetes.io/serviceaccount/namespace
+            
+    Disabling RBAC (role-based access control)
+        
+        kube create clusterrolebinding permissive-binding --clusterrole=cluster-admin --group=system:serviceaccounts
+            - give all service accounts (including pods) cluster-admin privileges, which allow them to do whatever they want.
+    
+    Simplifying API server communication.
+        - Instead of sending requests to the API server directly, sent them to proxy and proxy take care of auth & encryption & ca verfification.
+        
+        <!-- https://mvnrepository.com/artifact/io.fabric8/kubernetes-client -->
+        <dependency>
+            <groupId>io.fabric8</groupId>
+            <artifactId>kubernetes-client</artifactId>
+            <version>5.4.0</version>
+        </dependency>
+        
+        KubernetesClient client = new DefaultKubernetesClient();
+        PodList pods = client.pods().inNamespace("default").list();
+        pods.getItems().stream().forEach(System.out::println);
